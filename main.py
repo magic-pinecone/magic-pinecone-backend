@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from routers import test, course
+from routers import test, course, scholarship
 from database.db_connect import engine
 from database.models import Base
 from internal.scheduler import start_scheduler, scheduler
@@ -13,7 +13,6 @@ logging.basicConfig(level=logging.INFO)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    Base.metadata.create_all(bind=engine)
     start_scheduler()
     yield
     # Shutdown
@@ -40,6 +39,7 @@ app.add_middleware(
 
 app.include_router(test.router)
 app.include_router(course.router)
+app.include_router(scholarship.router)
 
 @app.get("/")
 def root():
