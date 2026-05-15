@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 COURSE_REMOTE_URL = 'https://cis.ncu.edu.tw/Course/main/support/course.xml'
 COURSE_HEADER = {
     'Accept-Language': 'zh-TW',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 
 async def fetch_colleges_with_departments():
@@ -26,9 +27,11 @@ async def fetch_colleges_with_departments():
         response = await client.get('https://cis.ncu.edu.tw/Course/main/query/byUnion', headers=COURSE_HEADER)
         response.raise_for_status()
         
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # Use response.content (bytes) to allow BeautifulSoup to handle encoding properly
+        soup = BeautifulSoup(response.content, 'html.parser')
         table_container = soup.select_one('#byUnion_table')
         if not table_container:
+            logger.warning(f"Could not find '#byUnion_table' in the byUnion response. Snippet: {response.text[:500]}")
             return colleges
         
         tables = table_container.find_all('table', recursive=False)
@@ -81,8 +84,10 @@ async def fetch_course_bases(department_id: str, college_id: str):
             return courses
         
         try:
-            root = ET.fromstring(response.text)
-        except Exception:
+            # ET.fromstring strictly expects bytes when XML has an encoding declaration (e.g. <?xml version="1.0" encoding="UTF-8"?>)
+            root = ET.fromstring(response.content)
+        except Exception as e:
+            logger.warning(f"Failed to parse XML for department {department_id}: {e}. Snippet: {response.text[:200]}")
             return courses
             
         for course_elem in root.findall('.//Course'):
@@ -126,7 +131,7 @@ async def fetch_all_course_extras():
                 }
             )
             response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.content, 'html.parser')
             
             trs = soup.select('#item tbody tr')
             for tr in trs:
