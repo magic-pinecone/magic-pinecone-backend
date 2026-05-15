@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.13.7"
 dependencies = [
+    "alembic>=1.14.1",
     "apscheduler>=3.11.2",
     "beautifulsoup4>=4.14.3",
     "dotenv>=0.9.9",

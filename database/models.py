@@ -45,3 +45,12 @@ class SystemStatus(Base):
     __tablename__ = "system_status"
     id = Column(Integer, primary_key=True, index=True)
     last_course_sync = Column(DateTime(timezone=True), nullable=True)
+    last_scholarship_sync = Column(DateTime(timezone=True), nullable=True)
+
+class Scholarship(Base):
+    __tablename__ = "scholarships"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category = Column(String, index=True, nullable=False) # e.g. 獎學金, 招募資訊
+    title = Column(String, nullable=False)
+    content_summary = Column(Text, nullable=True)
+    download_link = Column(String, nullable=True)
