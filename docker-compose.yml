@@ -9,8 +9,6 @@ services:
       - .env
     expose:
       - "8000"
-    ports:
-      - "8000:8000"
     networks:
       - apim_network
     depends_on:
