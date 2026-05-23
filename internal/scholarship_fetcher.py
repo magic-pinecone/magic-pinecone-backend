@@ -39,7 +39,7 @@ async def fetch_scholarship_data():
                 
             category = cols[1].get_text(strip=True)
             title = cols[2].get_text(strip=True)
-            content_summary = cols[3].get_text(strip=True)
+            content_summary = cols[3].get_text(separator='\n', strip=True).replace('\n下載', ' 下載')
             
             # Check for download link in the last column
             download_link = None
