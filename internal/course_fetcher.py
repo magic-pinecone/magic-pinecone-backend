@@ -100,7 +100,12 @@ async def fetch_course_bases(department_id: str, college_id: str):
             teachers = [t.strip() for t in teacher_str.split(',') if t.strip()]
             
             times_str = attr.get('ClassTime', '')
-            class_times = [f"{w}-{h}" for w, h in (t.split(',') for t in times_str.split(',') if len(t.split(',')) == 2)] if times_str else []
+            class_times = []
+            if times_str:
+                for t in times_str.split(','):
+                    t_clean = t.strip()
+                    if len(t_clean) == 2:
+                        class_times.append(f"{t_clean[0]}-{t_clean[1]}")
             
             courses.append({
                 "serial_no": attr.get('SerialNo', '').zfill(5) if attr.get('SerialNo') else "",
