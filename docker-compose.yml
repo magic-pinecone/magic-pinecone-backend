@@ -26,6 +26,8 @@ services:
     depends_on:
       - magic_pinecone
     restart: unless-stopped
+    volumes:
+      - digirunner_data:/var/lib/digirunner
 
   db:
     image: postgres:17.10
@@ -37,7 +39,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/
     ports:
-      - "5432:5432"
+      - "5432"
     networks:
       - apim_network
     healthcheck:
@@ -47,10 +49,22 @@ services:
       retries: 5
     restart: unless-stopped
 
+  adminer:
+    image: adminer:5.4.2
+    container_name: magic_pinecone_adminer
+    ports:
+      - '8081:8080'
+    networks:
+      - apim_network
+    depends_on:
+      - db
+
 networks:
   apim_network:
     driver: bridge
 
 volumes:
   postgres_data:
+    driver: local
+  digirunner_data:
     driver: local
