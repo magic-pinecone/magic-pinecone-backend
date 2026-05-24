@@ -1,5 +1,6 @@
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from database.db_connect import get_db
 from database.models import Course, SystemStatus
@@ -44,6 +45,9 @@ async def query_courses(
     department_id: Optional[str] = Query(None, description="過濾特定「系所」開設的課程"),
     college_id: Optional[str] = Query(None, description="過濾特定「學院」開設的課程"),
     course_type: Optional[str] = Query(None, description="依據修課類別搜尋，如 REQUIRED (必修), ELECTIVE (選修)"),
+    credits: Optional[List[float]] = Query(None, description="過濾特定的學分數，支援多選 (例如 credits=2&credits=3)"),
+    has_vacancy: Optional[bool] = Query(None, description="是否過濾有餘額的課程 (True: 有餘額, False: 已額滿)"),
+    class_times: Optional[List[str]] = Query(None, description="過濾上課時間，支援多選。格式為 'Day-Period' 如 '1-1' (星期一第一節) 或 '5-A' (星期五 A 節)"),
     skip: int = Query(0, ge=0, description="跳過前 N 筆資料，用於分頁"),
     limit: int = Query(100, ge=1, le=1000, description="限制回傳的資料筆數 (最多一次 1000 筆)"),
     db: Session = Depends(get_db)
@@ -62,6 +66,26 @@ async def query_courses(
         query = query.filter(Course.college_id == college_id)
     if course_type:
         query = query.filter(Course.course_type == course_type)
+    if credits:
+        query = query.filter(Course.credit.in_(credits))
+    if has_vacancy is True:
+        query = query.filter(
+            or_(
+                Course.limit_cnt == 0,
+                Course.limit_cnt.is_(None),
+                Course.admit_cnt.is_(None),
+                Course.admit_cnt < Course.limit_cnt
+            )
+        )
+    elif has_vacancy is False:
+        query = query.filter(
+            Course.limit_cnt > 0,
+            Course.admit_cnt.is_not(None),
+            Course.admit_cnt >= Course.limit_cnt
+        )
+    if class_times:
+        time_filters = [Course.class_times.like(f'%"{time_slot}"%') for time_slot in class_times]
+        query = query.filter(or_(*time_filters))
 
     total_count = query.count()
     courses = query.offset(skip).limit(limit).all()
