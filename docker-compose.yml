@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
 
   db:
-    image: postgres
+    image: postgres:17.10
     container_name: magic_pinecone_db
     environment:
       POSTGRES_USER: ${DB_USER}
