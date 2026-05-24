@@ -9,10 +9,10 @@ services:
       - .env
     expose:
       - "8000"
-    ports:
-      - "8000:8000"
     networks:
-      - apim_network
+      - public_net
+      - app_net
+      - db_net
     depends_on:
       db:
         condition: service_healthy
@@ -21,16 +21,19 @@ services:
   digirunner:
     image: tpisoftwareopensource/digirunner-open-source:release-v4.7.3
     container_name: digirunner_gateway
-    ports:
-      - "18080:18080"
+    expose:
+      - "18080"
     networks:
-      - apim_network
+      - public_net
+      - app_net
     depends_on:
       - magic_pinecone
     restart: unless-stopped
+    volumes:
+      - digirunner_data:/var/lib/digirunner
 
   db:
-    image: postgres
+    image: postgres:17.10
     container_name: magic_pinecone_db
     environment:
       POSTGRES_USER: ${DB_USER}
@@ -38,10 +41,10 @@ services:
       POSTGRES_DB: ${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     networks:
-      - apim_network
+      - db_net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
@@ -49,10 +52,50 @@ services:
       retries: 5
     restart: unless-stopped
 
+  adminer:
+    image: adminer:5.4.2
+    container_name: magic_pinecone_adminer
+    expose:
+      - "8080"
+    networks:
+      - public_net
+      - db_net
+    depends_on:
+      - db
+
+  caddy:
+    image: caddy:2.9.1-alpine
+    container_name: magic_pinecone_caddy
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "18080:18080"
+      - "8081:8081"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - public_net
+    depends_on:
+      - magic_pinecone
+      - digirunner
+      - adminer
+
 networks:
-  apim_network:
+  public_net:
+    driver: bridge
+  app_net:
+    driver: bridge
+  db_net:
     driver: bridge
 
 volumes:
   postgres_data:
+    driver: local
+  digirunner_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local

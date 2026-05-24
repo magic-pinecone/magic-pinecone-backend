@@ -1,0 +1,30 @@
+:8000 {
+    # Match only API documentation paths
+    @docs_paths {
+        path /docs /docs/* /redoc /redoc/* /openapi.json
+    }
+
+    # Reverse proxy allowed documentation paths
+    handle @docs_paths {
+        reverse_proxy magic_pinecone:8000
+    }
+
+    # Block all other endpoints with 403 Forbidden
+    handle {
+        respond "Access Denied: Direct backend access is restricted to API documentation only." 403
+    }
+
+    encode gzip zstd
+}
+
+:18080 {
+    # Reverse proxy DigiRunner API Gateway
+    reverse_proxy digirunner:18080
+    encode gzip zstd
+}
+
+:8081 {
+    # Reverse proxy Adminer database management UI
+    reverse_proxy adminer:8080
+    encode gzip zstd
+}
