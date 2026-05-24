@@ -31,6 +31,11 @@ services:
     restart: unless-stopped
     volumes:
       - digirunner_data:/var/lib/digirunner
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/var/lib/digirunner/dgrdb;DB_CLOSE_DELAY=-1;NON_KEYWORDS=VALUE;Mode=MySQL
+      - SPRING_SQL_INIT_MODE=always
+      - SPRING_SQL_INIT_CONTINUE_ON_ERROR=true
+
 
   db:
     image: postgres:17.10

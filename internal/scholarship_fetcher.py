@@ -1,5 +1,6 @@
 import logging
 import httpx
+import json
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
@@ -39,7 +40,26 @@ async def fetch_scholarship_data():
                 
             category = cols[1].get_text(strip=True)
             title = cols[2].get_text(strip=True)
-            content_summary = cols[3].get_text(separator='\n', strip=True).replace('\n下載', ' 下載')
+            
+            # Parse label-value pairs from the column text
+            content_summary_list = []
+            text = cols[3].get_text(separator='\n', strip=True).replace('\n下載', ' 下載')
+            for line in text.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                if ' :' in line:
+                    parts = line.split(' :', 1)
+                elif '：' in line:
+                    parts = line.split('：', 1)
+                elif ':' in line:
+                    parts = line.split(':', 1)
+                else:
+                    parts = ["", line]
+                
+                label = parts[0].strip()
+                value = parts[1].strip()
+                content_summary_list.append({"label": label, "value": value})
             
             # Check for download link in the last column
             download_link = None
@@ -55,7 +75,7 @@ async def fetch_scholarship_data():
             results.append({
                 "category": category,
                 "title": title,
-                "content_summary": content_summary,
+                "content_summary": json.dumps(content_summary_list, ensure_ascii=False),
                 "download_link": download_link
             })
             
