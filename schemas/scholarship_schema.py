@@ -3,15 +3,11 @@ from typing import Optional, List, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 
-class ContentSummaryItem(BaseModel):
-    label: str = Field(..., description="摘要項目的名稱/標籤")
-    value: str = Field(..., description="摘要項目的內容/值")
-
 class ScholarshipResponse(BaseModel):
     id: int = Field(..., description="內部資料庫流水號")
     category: str = Field(..., description="類別 (例如：獎學金、招募資訊)")
     title: str = Field(..., description="名稱/標題")
-    content_summary: Optional[List[ContentSummaryItem]] = Field(None, description="內容摘要 (包含日期與申請資格)")
+    content_summary: Optional[dict[str, str]] = Field(None, description="內容摘要 (包含日期與申請資格)")
     download_link: Optional[str] = Field(None, description="相關檔案下載連結")
 
     model_config = ConfigDict(from_attributes=True)
@@ -29,14 +25,27 @@ class ScholarshipResponse(BaseModel):
             return data
 
         def _parse(val):
+            if not val:
+                return {}
+            parsed = val
             if isinstance(val, str):
                 try:
-                    return json.loads(val)
+                    parsed = json.loads(val)
                 except json.JSONDecodeError:
-                    return []
-            if isinstance(val, list):
-                return val
-            return []
+                    return {}
+            if isinstance(parsed, list):
+                res = {}
+                for item in parsed:
+                    if isinstance(item, dict):
+                        if "label" in item and "value" in item:
+                            res[item["label"]] = item["value"]
+                        else:
+                            for k, v in item.items():
+                                res[k] = v
+                return res
+            if isinstance(parsed, dict):
+                return parsed
+            return {}
 
         if is_dict:
             target['content_summary'] = _parse(target.get('content_summary'))
