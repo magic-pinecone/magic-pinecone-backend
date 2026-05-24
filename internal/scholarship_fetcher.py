@@ -42,7 +42,7 @@ async def fetch_scholarship_data():
             title = cols[2].get_text(strip=True)
             
             # Parse label-value pairs from the column text
-            content_summary_list = []
+            content_summary_dict = {}
             text = cols[3].get_text(separator='\n', strip=True).replace('\n下載', ' 下載')
             for line in text.split('\n'):
                 line = line.strip()
@@ -59,7 +59,7 @@ async def fetch_scholarship_data():
                 
                 label = parts[0].strip()
                 value = parts[1].strip()
-                content_summary_list.append({"label": label, "value": value})
+                content_summary_dict[label] = value
             
             # Check for download link in the last column
             download_link = None
@@ -75,7 +75,7 @@ async def fetch_scholarship_data():
             results.append({
                 "category": category,
                 "title": title,
-                "content_summary": json.dumps(content_summary_list, ensure_ascii=False),
+                "content_summary": json.dumps(content_summary_dict, ensure_ascii=False),
                 "download_link": download_link
             })
             
