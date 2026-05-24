@@ -21,23 +21,50 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  digirunner:
+  dgr-h2db-detect:
+    container_name: dgr-h2db-detect
+    image: bash
+    volumes:
+      - ./db:/opt/db
+      - shared:/opt/shared
+    networks:
+      - app_net
+    command: |
+      bash -c '
+      cat << EOF > /opt/shared/dgr.args
+      -Xms2g
+      -Xmx4g
+      -DdigiRunner.token.key-store.path=/opt/digirunner/keys
+      -Dserver.port=18080
+      -Dspring.datasource.url=jdbc:h2:/opt/digirunner/db/dgrdb;NON_KEYWORDS=VALUE;Mode=MySQL
+      EOF
+      ls /opt/db/*.db &> /dev/null && echo "-Dspring.sql.init.mode=never" >> /opt/shared/dgr.args || echo "-Dspring.sql.init.mode=always" >> /opt/shared/dgr.args;
+      cat /opt/shared/dgr.args
+      '
+
+  dgr:
     image: tpisoftwareopensource/digirunner-open-source:release-v4.7.3
-    container_name: digirunner_gateway
+    container_name: dgr-gateway
+    depends_on:
+      magic_pinecone:
+        condition: service_started
+      dgr-h2db-detect:
+        condition: service_completed_successfully
     expose:
       - "18080"
+    environment:
+      - TZ=Asia/Taipei
+    command:
+      - "@/opt/shared/dgr.args"
+      - "org.springframework.boot.loader.launch.PropertiesLauncher"
+    volumes:
+      - ./db:/opt/digirunner/db
+      - shared:/opt/shared
     networks:
       - public_net
       - app_net
-    depends_on:
-      - magic_pinecone
     restart: unless-stopped
-    volumes:
-      - digirunner_data:/var/lib/digirunner
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:h2:file:/var/lib/digirunner/dgrdb;DB_CLOSE_DELAY=-1;NON_KEYWORDS=VALUE;Mode=MySQL
-      - SPRING_SQL_INIT_MODE=always
-      - SPRING_SQL_INIT_CONTINUE_ON_ERROR=true
+
 
 
   db:
@@ -87,7 +114,7 @@ services:
       - public_net
     depends_on:
       - magic_pinecone
-      - digirunner
+      - dgr
       - adminer
 
 networks:
@@ -101,7 +128,7 @@ networks:
 volumes:
   postgres_data:
     driver: local
-  digirunner_data:
+  shared:
     driver: local
   caddy_data:
     driver: local

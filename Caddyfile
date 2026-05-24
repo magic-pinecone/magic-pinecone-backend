@@ -19,7 +19,7 @@
 
 :18080 {
     # Reverse proxy DigiRunner API Gateway
-    reverse_proxy digirunner:18080
+    reverse_proxy dgr:18080
     encode gzip zstd
 }
 
