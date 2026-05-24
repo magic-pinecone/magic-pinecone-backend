@@ -1,5 +1,6 @@
 .venv
 .env
+.idea
 .idea/.gitignore
 .idea/MagicPineconeBackend.iml
 .idea/modules.xml
