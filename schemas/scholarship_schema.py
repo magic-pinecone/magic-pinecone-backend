@@ -9,6 +9,7 @@ class ScholarshipResponse(BaseModel):
     title: str = Field(..., description="名稱/標題")
     content_summary: Optional[dict[str, str]] = Field(None, description="內容摘要 (包含日期與申請資格)")
     download_link: Optional[str] = Field(None, description="相關檔案下載連結")
+    apply_link: Optional[str] = Field(None, description="申請連結")
 
     model_config = ConfigDict(from_attributes=True)
 

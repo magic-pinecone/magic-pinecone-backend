@@ -52,3 +52,4 @@ class Scholarship(Base):
     title = Column(String, nullable=False)
     content_summary = Column(Text, nullable=True)
     download_link = Column(String, nullable=True)
+    apply_link = Column(String, nullable=True)

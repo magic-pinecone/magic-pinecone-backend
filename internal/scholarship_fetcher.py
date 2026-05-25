@@ -41,6 +41,17 @@ async def fetch_scholarship_data():
             category = cols[1].get_text(strip=True)
             title = cols[2].get_text(strip=True)
 
+            # Check for application link in the title column
+            apply_link = None
+            title_link_tag = cols[2].find('a')
+            if title_link_tag and title_link_tag.get('href'):
+                href = title_link_tag.get('href')
+                if href.startswith('..'):
+                    href = href.replace('..', 'https://cis.ncu.edu.tw', 1)
+                elif href.startswith('/'):
+                    href = f"https://cis.ncu.edu.tw{href}"
+                apply_link = href
+
             # Parse label-value pairs from the column text
             content_summary_dict = {}
             text = cols[3].get_text(separator='\n', strip=True).replace('\n下載', ' 下載')
@@ -76,7 +87,8 @@ async def fetch_scholarship_data():
                 "category": category,
                 "title": title,
                 "content_summary": json.dumps(content_summary_dict, ensure_ascii=False),
-                "download_link": download_link
+                "download_link": download_link,
+                "apply_link": apply_link
             })
 
     return results
