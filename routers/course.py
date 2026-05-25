@@ -42,8 +42,8 @@ async def query_courses(
     title: Optional[str] = Query(None, description="以課程名稱進行模糊搜尋 (例如輸入 '程式' 將找出所有包含程式兩字的課程)"),
     class_no: Optional[str] = Query(None, description="以課號進行模糊搜尋 (包含系縮寫/數字代碼)"),
     serial_no: Optional[str] = Query(None, description="指定特定的課程流水號查尋單一課程 (五碼)"),
-    department_id: Optional[str] = Query(None, description="過濾特定「系所」開設的課程"),
-    college_id: Optional[str] = Query(None, description="過濾特定「學院」開設的課程"),
+    department_name: Optional[str] = Query(None, description="過濾特定「系所」開設的課程名稱"),
+    college_name: Optional[str] = Query(None, description="過濾特定「學院」開設的課程名稱"),
     course_type: Optional[str] = Query(None, description="依據修課類別搜尋，如 REQUIRED (必修), ELECTIVE (選修)"),
     credits: Optional[List[float]] = Query(None, description="過濾特定的學分數，支援多選 (例如 credits=2&credits=3)"),
     has_vacancy: Optional[bool] = Query(None, description="是否過濾有餘額的課程 (True: 有餘額, False: 已額滿)"),
@@ -60,10 +60,10 @@ async def query_courses(
         query = query.filter(Course.class_no.ilike(f"%{class_no}%"))
     if serial_no:
         query = query.filter(Course.serial_no == serial_no)
-    if department_id:
-        query = query.filter(Course.department_id == department_id)
-    if college_id:
-        query = query.filter(Course.college_id == college_id)
+    if department_name:
+        query = query.filter(Course.department_name.ilike(f"%{department_name}%"))
+    if college_name:
+        query = query.filter(Course.college_name.ilike(f"%{college_name}%"))
     if course_type:
         query = query.filter(Course.course_type == course_type)
     if credits:

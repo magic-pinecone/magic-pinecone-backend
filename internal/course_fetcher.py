@@ -40,11 +40,12 @@ async def fetch_colleges_with_departments():
         # To be safe against nested structures, let's just find them by selector:
         tables = soup.select('#byUnion_table table')
         for i, table in enumerate(tables):
-            college_id = f"collegeI{i}"
             tr1 = table.find('tr')
             if not tr1: continue
             th = tr1.find('th')
-            college_name = th.get_text(strip=True) if th else f"College {i}"
+            raw_college_name = th.get_text(strip=True) if th else f"College {i}"
+            import re
+            college_name = re.sub(r'\(.*?\)', '', raw_college_name).strip()
             
             departments = []
             tr2 = table.find_all('tr')[1] if len(table.find_all('tr')) > 1 else None
@@ -61,23 +62,21 @@ async def fetch_colleges_with_departments():
                     department_name = re.sub(r'\(\d+\)$', '', anchor.get_text(strip=True))
                     
                     departments.append({
-                        "id": department_id,
                         "name": department_name,
-                        "college_id": college_id
+                        "code": department_id
                     })
             
             colleges.append({
-                "id": college_id,
                 "name": college_name,
                 "departments": departments
             })
             
     return colleges
 
-async def fetch_course_bases(department_id: str, college_id: str):
+async def fetch_course_bases(department_code: str, department_name: str, college_name: str):
     courses = []
     async with httpx.AsyncClient(verify=False) as client:
-        response = await client.get(COURSE_REMOTE_URL, headers=COURSE_HEADER, params={"id": department_id})
+        response = await client.get(COURSE_REMOTE_URL, headers=COURSE_HEADER, params={"id": department_code})
         try:
             response.raise_for_status()
         except Exception:
@@ -88,7 +87,7 @@ async def fetch_course_bases(department_id: str, college_id: str):
             # ET.fromstring strictly expects bytes when XML has an encoding declaration (e.g. <?xml version="1.0" encoding="UTF-8"?>)
             root = ET.fromstring(response.content)
         except Exception as e:
-            logger.warning(f"Failed to parse XML for department {department_id}: {e}. Snippet: {response.text[:200]}")
+            logger.warning(f"Failed to parse XML for department {department_code}: {e}. Snippet: {response.text[:200]}")
             return courses
             
         for course_elem in root.findall('.//Course'):
@@ -118,8 +117,8 @@ async def fetch_course_bases(department_id: str, college_id: str):
                 "limit_cnt": int(attr.get('limitCnt', 0) or 0),
                 "admit_cnt": int(attr.get('admitCnt', 0) or 0),
                 "wait_cnt": int(attr.get('waitCnt', 0) or 0),
-                "college_id": college_id,
-                "department_id": department_id
+                "college_name": college_name,
+                "department_name": department_name
             })
     return courses
 
@@ -175,27 +174,34 @@ async def sync_courses_to_db(db: Session):
         logger.info(f"Fetched {len(colleges)} colleges.")
         
         all_courses = []
+        added_depts = set()
         for c in colleges:
             # UPSERT College
-            db_college = db.query(College).filter(College.id == c['id']).first()
+            db_college = db.query(College).filter(College.name == c['name']).first()
             if not db_college:
-                db_college = College(id=c['id'], name=c['name'])
+                db_college = College(name=c['name'])
                 db.add(db_college)
-            else:
-                db_college.name = c['name']
             
             for d in c['departments']:
+                # Deduplicate department name within the current sync session
+                if d['name'] in added_depts:
+                    # Still fetch courses for this department code
+                    dept_courses = await fetch_course_bases(d['code'], d['name'], c['name'])
+                    all_courses.extend(dept_courses)
+                    continue
+
                 # UPSERT Department
-                db_dept = db.query(Department).filter(Department.id == d['id']).first()
+                db_dept = db.query(Department).filter(Department.name == d['name']).first()
                 if not db_dept:
-                    db_dept = Department(id=d['id'], name=d['name'], college_id=c['id'])
+                    db_dept = Department(name=d['name'], college_name=c['name'])
                     db.add(db_dept)
                 else:
-                    db_dept.name = d['name']
-                    db_dept.college_id = c['id']
+                    db_dept.college_name = c['name']
                 
-                # Fetch courses for department
-                dept_courses = await fetch_course_bases(d['id'], c['id'])
+                added_depts.add(d['name'])
+
+                # Fetch courses for department using code for API, name for relation
+                dept_courses = await fetch_course_bases(d['code'], d['name'], c['name'])
                 all_courses.extend(dept_courses)
                 
             # commit at college boundary

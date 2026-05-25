@@ -4,16 +4,14 @@ from database.db_connect import Base
 
 class College(Base):
     __tablename__ = "colleges"
-    id = Column(String, primary_key=True, index=True)
-    name = Column(String, nullable=False)
+    name = Column(String, primary_key=True, index=True)
 
     departments = relationship("Department", back_populates="college")
 
 class Department(Base):
     __tablename__ = "departments"
-    id = Column(String, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    college_id = Column(String, ForeignKey("colleges.id"), nullable=False)
+    name = Column(String, primary_key=True, index=True)
+    college_name = Column(String, ForeignKey("colleges.name"), nullable=False)
 
     college = relationship("College", back_populates="departments")
     courses = relationship("Course", back_populates="department")
@@ -34,8 +32,8 @@ class Course(Base):
     admit_cnt = Column(Integer, nullable=True)
     wait_cnt = Column(Integer, nullable=True)
 
-    college_id = Column(String, ForeignKey("colleges.id"), nullable=True)
-    department_id = Column(String, ForeignKey("departments.id"), nullable=True)
+    college_name = Column(String, ForeignKey("colleges.name"), nullable=True)
+    department_name = Column(String, ForeignKey("departments.name"), nullable=True)
     course_type = Column(String, nullable=True) # e.g. REQUIRED, ELECTIVE
 
     department = relationship("Department", back_populates="courses")
