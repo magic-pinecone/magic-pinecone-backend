@@ -27,14 +27,14 @@ async def fetch_colleges_with_departments():
     async with httpx.AsyncClient(verify=False) as client:
         response = await client.get('https://cis.ncu.edu.tw/Course/main/query/byUnion', headers=COURSE_HEADER)
         response.raise_for_status()
-        
+
         # Use response.content (bytes) to allow BeautifulSoup to handle encoding properly
         soup = BeautifulSoup(response.content, 'html.parser')
         table_container = soup.select_one('#byUnion_table')
         if not table_container:
             logger.warning(f"Could not find '#byUnion_table' in the byUnion response. Snippet: {response.text[:500]}")
             return colleges
-        
+
         tables = table_container.find_all('table', recursive=False)
         # Note: the html structure puts college tables directly under the main table or its tr/td
         # To be safe against nested structures, let's just find them by selector:
@@ -46,7 +46,7 @@ async def fetch_colleges_with_departments():
             raw_college_name = th.get_text(strip=True) if th else f"College {i}"
             import re
             college_name = re.sub(r'\(.*?\)', '', raw_college_name).strip()
-            
+
             departments = []
             tr2 = table.find_all('tr')[1] if len(table.find_all('tr')) > 1 else None
             if tr2:
@@ -56,21 +56,21 @@ async def fetch_colleges_with_departments():
                     parsed_url = urlparse(href)
                     qs = parse_qs(parsed_url.query)
                     department_id = qs.get('dept', [''])[0]
-                    
+
                     import re
                     # Remove trailing (count)
                     department_name = re.sub(r'\(\d+\)$', '', anchor.get_text(strip=True))
-                    
+
                     departments.append({
                         "name": department_name,
                         "code": department_id
                     })
-            
+
             colleges.append({
                 "name": college_name,
                 "departments": departments
             })
-            
+
     return colleges
 
 async def fetch_course_bases(department_code: str, department_name: str, college_name: str):
@@ -82,22 +82,22 @@ async def fetch_course_bases(department_code: str, department_name: str, college
         except Exception:
             # Maybe invalid department or no courses
             return courses
-        
+
         try:
             # ET.fromstring strictly expects bytes when XML has an encoding declaration (e.g. <?xml version="1.0" encoding="UTF-8"?>)
             root = ET.fromstring(response.content)
         except Exception as e:
             logger.warning(f"Failed to parse XML for department {department_code}: {e}. Snippet: {response.text[:200]}")
             return courses
-            
+
         for course_elem in root.findall('.//Course'):
             attr = course_elem.attrib
             class_no = attr.get('ClassNo', '')
             class_no_fmt = f"{class_no[:6]}-{class_no[6:]}" if len(class_no) > 6 else class_no
-            
+
             teacher_str = attr.get('Teacher', '')
             teachers = [t.strip() for t in teacher_str.split(',') if t.strip()]
-            
+
             times_str = attr.get('ClassTime', '')
             class_times = []
             if times_str:
@@ -105,7 +105,7 @@ async def fetch_course_bases(department_code: str, department_name: str, college
                     t_clean = t.strip()
                     if len(t_clean) == 2:
                         class_times.append(f"{t_clean[0]}-{t_clean[1]}")
-            
+
             courses.append({
                 "serial_no": attr.get('SerialNo', '').zfill(5) if attr.get('SerialNo') else "",
                 "class_no": class_no_fmt,
@@ -128,7 +128,7 @@ async def fetch_all_course_extras():
     async with httpx.AsyncClient(verify=False) as client:
         while True:
             response = await client.get(
-                'https://cis.ncu.edu.tw/Course/main/query/byKeywords', 
+                'https://cis.ncu.edu.tw/Course/main/query/byKeywords',
                 headers=COURSE_HEADER,
                 params={
                     'd-49489-p': page_no,
@@ -137,30 +137,30 @@ async def fetch_all_course_extras():
             )
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
-            
+
             trs = soup.select('#item tbody tr')
             for tr in trs:
                 td1 = tr.select_one('td:nth-child(1)')
                 # Extract before <br>
                 serial_no = td1.contents[0].strip() if td1 and td1.contents else ""
-                
+
                 td6 = tr.select_one('td:nth-child(6)')
                 raw_type = td6.get_text(strip=True) if td6 else ""
-                
+
                 course_type = "REQUIRED" if raw_type == "必修" else "ELECTIVE" if raw_type == "選修" else "UNKNOWN"
-                
+
                 course_extras.append({
                     "serial_no": serial_no.zfill(5),
                     "course_type": course_type
                 })
-            
+
             # Check next page
             pagelinks = soup.select('.pagelinks > *')
             if pagelinks and pagelinks[-1].name == 'a':
                 page_no += 1
             else:
                 break
-                
+
     return course_extras
 
 async def sync_courses_to_db(db: Session):
@@ -172,7 +172,7 @@ async def sync_courses_to_db(db: Session):
     try:
         colleges = await fetch_colleges_with_departments()
         logger.info(f"Fetched {len(colleges)} colleges.")
-        
+
         all_courses = []
         added_depts = set()
         for c in colleges:
@@ -181,7 +181,7 @@ async def sync_courses_to_db(db: Session):
             if not db_college:
                 db_college = College(name=c['name'])
                 db.add(db_college)
-            
+
             for d in c['departments']:
                 # Deduplicate department name within the current sync session
                 if d['name'] in added_depts:
@@ -197,25 +197,25 @@ async def sync_courses_to_db(db: Session):
                     db.add(db_dept)
                 else:
                     db_dept.college_name = c['name']
-                
+
                 added_depts.add(d['name'])
 
                 # Fetch courses for department using code for API, name for relation
                 dept_courses = await fetch_course_bases(d['code'], d['name'], c['name'])
                 all_courses.extend(dept_courses)
-                
+
             # commit at college boundary
             db.commit()
-            
+
         logger.info(f"Fetched {len(all_courses)} total courses from XML.")
-        
-        # Deduplicate locally to prevent UniqueViolation for cross-listed courses 
+
+        # Deduplicate locally to prevent UniqueViolation for cross-listed courses
         # in the same uncommitted transaction batch.
         unique_courses = {}
         for cd in all_courses:
             if cd.get('serial_no'):
                 unique_courses[cd['serial_no']] = cd
-                
+
         # Merge all unique courses into DB
         for cd in unique_courses.values():
             db_course = db.query(Course).filter(Course.serial_no == cd['serial_no']).first()
@@ -226,28 +226,28 @@ async def sync_courses_to_db(db: Session):
                 for k, v in cd.items():
                     setattr(db_course, k, v)
         db.commit()
-        
+
         logger.info("Starting course extras fetch...")
         extras = await fetch_all_course_extras()
         logger.info(f"Fetched {len(extras)} course extras.")
-        
+
         # Merge extras
         for extra in extras:
             db_course = db.query(Course).filter(Course.serial_no == extra['serial_no']).first()
             if db_course:
                 db_course.course_type = extra['course_type']
-        
-        
+
+
         status = db.query(SystemStatus).filter(SystemStatus.id == 1).first()
         if not status:
             status = SystemStatus(id=1, last_course_sync=datetime.now(timezone.utc))
             db.add(status)
         else:
             status.last_course_sync = datetime.now(timezone.utc)
-        
+
         db.commit()
         logger.info("Course synchronization completed successfully.")
-        
+
     except Exception as e:
         logger.error(f"Error during course sync: {e}")
         db.rollback()

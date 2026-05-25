@@ -25,17 +25,17 @@ async def run_sync_task():
     finally:
         db.close()
 
-@router.post('/sync', 
-             summary="Trigger Course Synchronization", 
+@router.post('/sync',
+             summary="Trigger Course Synchronization",
              description="手動觸發背景作業，將中央大學 (NCU) 的所有課程資料從遠端同步至本地資料庫。該操作不會阻塞連線。",
              response_description="回傳同步任務的啟動狀態")
 async def manual_sync_courses(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_sync_task)
     return {"status": "sync_started", "message": "Course synchronization has started in the background."}
 
-@router.get('', 
-            response_model=CourseResult, 
-            summary="Query Courses", 
+@router.get('',
+            response_model=CourseResult,
+            summary="Query Courses",
             description="透過各種自訂條件 (如課號、課程名稱、學院 ID、系所 ID) 來檢索資料庫中的所有課程。支援分頁功能 (利用 skip, limit) 以及關鍵字模糊搜尋。",
             response_description="包含所查詢之課程列表，以及符合該條件的資料總數。")
 async def query_courses(
