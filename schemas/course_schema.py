@@ -16,8 +16,8 @@ class CourseResponse(BaseModel):
     limit_cnt: Optional[int] = Field(None, description="限制選修人數")
     admit_cnt: Optional[int] = Field(None, description="已上網選上人數")
     wait_cnt: Optional[int] = Field(None, description="候補人數")
-    college_id: Optional[str] = Field(None, description="隸屬學院 ID")
-    department_id: Optional[str] = Field(None, description="隸屬系所 ID")
+    college_name: Optional[str] = Field(None, description="隸屬學院名稱")
+    department_name: Optional[str] = Field(None, description="隸屬系所名稱")
     course_type: Optional[str] = Field(None, description="修課類別 (例如 REQUIRED 必修, ELECTIVE 選修)")
 
     model_config = ConfigDict(from_attributes=True)
