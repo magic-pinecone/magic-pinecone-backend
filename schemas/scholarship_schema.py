@@ -59,4 +59,3 @@ class ScholarshipResult(BaseModel):
     total_count: int = Field(..., description="符合條件的總筆數")
     last_updated: Optional[datetime] = Field(None, description="資料庫最後更新時間")
     scholarships: List[ScholarshipResponse] = Field(..., description="查詢到的資訊列表")
-
