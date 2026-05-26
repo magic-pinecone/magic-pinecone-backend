@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 COPY . .
 
-FROM python:3.14-alpine
+FROM python:3.14.0-alpine3.20
 
 WORKDIR /app
 
