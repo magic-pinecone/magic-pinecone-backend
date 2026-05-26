@@ -110,7 +110,7 @@ async def fetch_course_detail(client: httpx.AsyncClient, serial_no: str, semapho
             except (httpx.RequestError, httpx.TimeoutException) as e:
                 logger.warning(f"Error fetching course details for {serial_no} (attempt {attempt + 1}): {e}")
                 if attempt < 2:
-                    await asyncio.sleep(1.0 * (attempt + 1))  # exponential backoff
+                    await asyncio.sleep(1.0 * (attempt + 1))  # linear backoff
                 else:
                     logger.error(f"Max retries reached for fetching course details: {serial_no}")
         return None
