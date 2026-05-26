@@ -1,0 +1,39 @@
+.git
+.gitignore
+.dockerignore
+
+# Local Python environments and package caches
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# IDE and OS metadata
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+
+# Runtime data mounted by docker-compose
+db
+
+# Local logs and scratch files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Local API-client/test artifacts
+*.http
