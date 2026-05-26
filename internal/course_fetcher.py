@@ -223,6 +223,10 @@ async def sync_courses_to_db(db: Session):
                 db_course = Course(**cd)
                 db.add(db_course)
             else:
+                # Detect change/reuse: if title or class_no changed, delete the old detail record
+                if db_course.title != cd['title'] or db_course.class_no != cd['class_no']:
+                    if db_course.detail:
+                        db.delete(db_course.detail)
                 for k, v in cd.items():
                     setattr(db_course, k, v)
         db.commit()
