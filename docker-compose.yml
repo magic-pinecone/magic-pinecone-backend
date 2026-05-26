@@ -68,7 +68,7 @@ services:
 
 
   db:
-    image: postgres:17.10
+    image: pgvector/pgvector:pg17
     container_name: magic_pinecone_db
     environment:
       POSTGRES_USER: ${DB_USER}
