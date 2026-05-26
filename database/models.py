@@ -38,6 +38,19 @@ class Course(Base):
 
     department = relationship("Department", back_populates="courses")
     college = relationship("College")
+    detail = relationship("CourseDetail", back_populates="course", uselist=False, cascade="all, delete-orphan")
+
+class CourseDetail(Base):
+    __tablename__ = "course_details"
+
+    serial_no = Column(String, ForeignKey("courses.serial_no", ondelete="CASCADE"), primary_key=True, index=True)
+    objectives = Column(Text, nullable=True)
+    content = Column(Text, nullable=True)
+    books = Column(Text, nullable=True)
+    teaching_method = Column(Text, nullable=True)
+    grading_policy = Column(Text, nullable=True)
+
+    course = relationship("Course", back_populates="detail")
 
 class SystemStatus(Base):
     __tablename__ = "system_status"

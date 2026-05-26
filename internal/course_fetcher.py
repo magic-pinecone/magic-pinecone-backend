@@ -223,6 +223,10 @@ async def sync_courses_to_db(db: Session):
                 db_course = Course(**cd)
                 db.add(db_course)
             else:
+                # Detect change/reuse: if title or class_no changed, delete the old detail record
+                if db_course.title != cd['title'] or db_course.class_no != cd['class_no']:
+                    if db_course.detail:
+                        db.delete(db_course.detail)
                 for k, v in cd.items():
                     setattr(db_course, k, v)
         db.commit()
@@ -237,6 +241,12 @@ async def sync_courses_to_db(db: Session):
             if db_course:
                 db_course.course_type = extra['course_type']
 
+        # Commit base courses and extras first to isolate transaction boundaries
+        db.commit()
+
+        # Sync detailed course content (objectives, content, books, teaching methods, etc.)
+        from internal.course_detail_fetcher import sync_course_details
+        await sync_course_details(db)
 
         status = db.query(SystemStatus).filter(SystemStatus.id == 1).first()
         if not status:
