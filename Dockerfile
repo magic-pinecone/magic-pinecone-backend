@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM ghcr.io/astral-sh/uv:python3.14-alpine AS builder
+FROM ghcr.io/astral-sh/uv:0.11.16-python3.13-alpine AS builder
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 COPY . .
 
-FROM python:3.14.0-alpine3.20
+FROM python:3.13.13-alpine
 
 WORKDIR /app
 
