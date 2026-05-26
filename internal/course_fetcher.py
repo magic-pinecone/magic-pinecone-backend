@@ -237,6 +237,9 @@ async def sync_courses_to_db(db: Session):
             if db_course:
                 db_course.course_type = extra['course_type']
 
+        # Sync detailed course content (objectives, content, books, teaching methods, etc.)
+        from internal.course_detail_fetcher import sync_course_details
+        await sync_course_details(db)
 
         status = db.query(SystemStatus).filter(SystemStatus.id == 1).first()
         if not status:
