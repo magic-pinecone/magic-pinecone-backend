@@ -1,20 +1,26 @@
-FROM python:3.14.3-slim
+FROM ghcr.io/astral-sh/uv:python3.14-alpine AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
-ENV UV_NO_CACHE=1\
-    UV_COMPILE_BYTECODE=1
+ENV UV_COMPILE_BYTECODE=1
 
 WORKDIR /app
 
-# 準備 psycopg2 需要的編譯環境
-RUN apt-get update && apt-get install -y gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+# psycopg2 builds from source on Alpine, so it needs a compiler and pg_config.
+RUN apk add --no-cache build-base postgresql-dev
 
 COPY pyproject.toml uv.lock ./
-# 透過 uv sync 建立環境
-RUN uv sync --frozen
+
+RUN uv sync --frozen --no-install-project --no-dev
 
 COPY . .
 
-# 透過 uv run 啟動 uvicorn，確保讀取到虛擬環境
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+FROM python:3.14-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache libpq
+
+COPY --from=builder /app /app
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
