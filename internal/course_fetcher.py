@@ -241,6 +241,9 @@ async def sync_courses_to_db(db: Session):
             if db_course:
                 db_course.course_type = extra['course_type']
 
+        # Commit base courses and extras first to isolate transaction boundaries
+        db.commit()
+
         # Sync detailed course content (objectives, content, books, teaching methods, etc.)
         from internal.course_detail_fetcher import sync_course_details
         await sync_course_details(db)
