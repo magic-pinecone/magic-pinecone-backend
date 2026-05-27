@@ -1,12 +1,13 @@
 from typing import Optional, List
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from database.db_connect import get_db
-from database.models import Course, SystemStatus
+from database.models import Course, SystemStatus, CourseEmbedding
 from internal.course_fetcher import sync_courses_to_db
-from schemas.course_schema import CourseResult
+from schemas.course_schema import CourseResult, SemanticSearchItem, CourseResponse
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +99,72 @@ async def query_courses(
         last_updated=last_updated,
         courses=courses
     )
+
+async def run_embedding_sync_task(force_all: bool):
+    db = next(get_db())
+    try:
+        logger.info("Manual course embedding RAG preprocessing started from endpoint.")
+        from internal.rag_preprocessor import sync_course_normalizations, sync_course_embeddings
+        await sync_course_normalizations(db, force_all=force_all)
+        await sync_course_embeddings(db, force_all=force_all)
+    except Exception as e:
+        logger.error(f"Error in manual embedding sync task: {e}")
+    finally:
+        db.close()
+
+@router.post('/sync-embeddings',
+             summary="Trigger RAG Embeddings Preprocessing",
+             description="手動觸發背景作業，對所有具有詳細大綱的課程進行 LLM 正規化與向量嵌入，並將結果存入資料庫。",
+             response_description="回傳任務啟動狀態")
+async def manual_sync_embeddings(
+    background_tasks: BackgroundTasks,
+    force_all: bool = Query(False, description="是否強制重刷所有課程的向量")
+):
+    background_tasks.add_task(run_embedding_sync_task, force_all)
+    return {"status": "embedding_sync_started", "message": "Course embedding preprocessing has started in the background."}
+
+@router.get('/search',
+            response_model=List[SemanticSearchItem],
+            summary="Semantic Search Courses (RAG)",
+            description="透過自然語言 (RAG 語意搜尋) 尋找最符合的課程。系統會將您的 query 轉為向量後，至資料庫計算餘弦相似度排序。")
+async def semantic_search_courses(
+    query: str = Query(..., description="輸入你想搜尋的課程特徵或興趣，例如：『想學機器學習與 Python 實作』"),
+    limit: int = Query(10, ge=1, le=50, description="限制回傳的課程筆數"),
+    db: Session = Depends(get_db)
+):
+    from core.config import settings
+    if not settings.gemini_api_key:
+        raise HTTPException(status_code=400, detail="Gemini API Key is not configured. Semantic search is unavailable.")
+
+    import httpx
+    import asyncio
+    from internal.rag_preprocessor import generate_embedding_api
+
+    sem = asyncio.Semaphore(1)
+    async with httpx.AsyncClient(verify=False) as client:
+        query_vector = await generate_embedding_api(client, query, sem)
+
+    if not query_vector:
+        raise HTTPException(status_code=500, detail="Failed to generate embedding for the search query.")
+
+    raw_results = db.query(
+        Course,
+        CourseEmbedding.organized_description,
+        (1.0 - CourseEmbedding.embedding.cosine_distance(query_vector)).label("similarity")
+    ).join(
+        CourseEmbedding, Course.serial_no == CourseEmbedding.serial_no
+    ).order_by(
+        CourseEmbedding.embedding.cosine_distance(query_vector)
+    ).limit(limit).all()
+
+    results = []
+    for course, desc, score in raw_results:
+        course_data = CourseResponse.model_validate(course)
+        results.append(
+            SemanticSearchItem(
+                course=course_data,
+                similarity_score=float(score),
+                organized_description=desc
+            )
+        )
+    return results
