@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
 
-from routers import test, course, scholarship, auth
+from routers import test, course, scholarship, auth, chat
 from database.db_connect import engine
 from database.models import Base
 from internal.scheduler import start_scheduler, scheduler
@@ -51,6 +51,7 @@ app.include_router(test.router)
 app.include_router(course.router)
 app.include_router(scholarship.router)
 app.include_router(auth.router)
+app.include_router(chat.router)
 
 @app.get("/")
 def root():

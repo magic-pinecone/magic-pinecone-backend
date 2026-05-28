@@ -108,3 +108,74 @@ class User(Base):
     title = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    courses = relationship("UserCourse", back_populates="user", cascade="all, delete-orphan")
+    documents = relationship("UserDocument", back_populates="user", cascade="all, delete-orphan")
+    messages = relationship("ChatMessage", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserCourse(Base):
+    __tablename__ = "user_courses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    serial_no = Column(String, ForeignKey("courses.serial_no", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="courses")
+    course = relationship("Course")
+
+
+class UserDocument(Base):
+    __tablename__ = "user_documents"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String, nullable=False)
+    raw_content = Column(Text, nullable=False)
+    status = Column(String, default="processing")  # 'processing', 'ready', 'error'
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="documents")
+    chunks = relationship("UserDocumentChunk", back_populates="document", cascade="all, delete-orphan")
+
+
+class UserDocumentChunk(Base):
+    __tablename__ = "user_document_chunks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    doc_id = Column(Integer, ForeignKey("user_documents.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content = Column(Text, nullable=False)
+    embedding = Column(Vector(768), nullable=True)
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    document = relationship("UserDocument", back_populates="chunks")
+    user = relationship("User")
+
+    __table_args__ = (
+        Index(
+            "ix_user_document_chunks_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+            postgresql_with={"m": 16, "ef_construction": 64},
+        ),
+    )
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String, nullable=False)  # 'user', 'assistant'
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="messages")
