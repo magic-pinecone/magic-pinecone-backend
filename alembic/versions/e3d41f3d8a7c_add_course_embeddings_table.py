@@ -1,7 +1,7 @@
 """add_course_embeddings_table
 
 Revision ID: e3d41f3d8a7c
-Revises: cf0848b8624d, ffd6d3c4078e
+Revises: cf0848b8624d
 Create Date: 2026-05-27 14:30:00.000000
 
 """
