@@ -10,7 +10,6 @@ router = APIRouter(
 
 @router.get('/db_connection')
 async def test_db_connection(db: Session = Depends(get_db)):
-    get_db()
     try:
         result = db.execute(text('SELECT 1')).scalar()
 

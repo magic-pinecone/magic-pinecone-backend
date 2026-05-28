@@ -20,9 +20,17 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-def get_db():
+from contextlib import contextmanager
+
+@contextmanager
+def db_session():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+def get_db():
+    with db_session() as db:
+        yield db
+

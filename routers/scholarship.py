@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
-from database.db_connect import get_db
+from database.db_connect import get_db, db_session
 from database.models import Scholarship, SystemStatus
 from internal.scholarship_fetcher import sync_scholarships_to_db
 from schemas.scholarship_schema import ScholarshipResult
@@ -15,14 +15,12 @@ router = APIRouter(
 )
 
 async def run_sync_task():
-    db = next(get_db())
     try:
-        logger.info("Manual scholarship sync started from endpoint.")
-        await sync_scholarships_to_db(db)
+        with db_session() as db:
+            logger.info("Manual scholarship sync started from endpoint.")
+            await sync_scholarships_to_db(db)
     except Exception as e:
         logger.error(f"Error in manual scholarship sync task: {e}")
-    finally:
-        db.close()
 
 @router.post('/sync',
              summary="Trigger Scholarship Synchronization",

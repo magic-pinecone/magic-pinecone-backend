@@ -63,3 +63,11 @@ class CourseResult(BaseModel):
     total_count: int = Field(..., description="符合條件的課程總數")
     last_updated: Optional[datetime] = Field(None, description="資料庫最後更新時間")
     courses: List[CourseResponse] = Field(..., description="查詢到的課程列表")
+
+class SemanticSearchItem(BaseModel):
+    course: CourseResponse
+    similarity_score: float
+    organized_description: str
+
+    model_config = ConfigDict(from_attributes=True)
+
