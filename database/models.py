@@ -100,6 +100,11 @@ class User(Base):
     email = Column(String, nullable=True)
     role = Column(String, default="student")          # 'student', 'faculty', 'admin'
     student_id = Column(String, unique=True, index=True, nullable=True)
-    department = Column(String, nullable=True)         # Extracted from academy-records
+    department = Column(String, nullable=True)         # Extracted from academy-records/faculty-records
+    study_system = Column(String, nullable=True)
+    student_status = Column(String, nullable=True)
+    employee_type = Column(String, nullable=True)
+    employee_status = Column(String, nullable=True)
+    title = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

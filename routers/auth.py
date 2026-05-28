@@ -10,6 +10,7 @@ from core.security import create_access_token
 from database.db_connect import get_db
 from database.models import User
 from dependencies import get_current_user
+from internal.ncu_portal import NCUPortalClient
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -22,7 +23,7 @@ def login(state: str | None = Query(None, description="Optional URL to redirect 
         "response_type": "code",
         "client_id": settings.ncu_oauth_client_id,
         "redirect_uri": settings.ncu_oauth_redirect_uri,
-        "scope": "identifier chinese-name email student-id academy-records"
+        "scope": "identifier chinese-name english-name student-id academy-records faculty-records"
     }
     if state:
         params["state"] = state
@@ -92,6 +93,7 @@ async def callback(
             )
             
     user_info = info_response.json()
+    print(f"DEBUG: User Info from NCU Portal: {user_info}", flush=True)
     identifier = user_info.get("identifier")
     if not identifier:
         raise HTTPException(
@@ -99,16 +101,47 @@ async def callback(
             detail="User identifier not found in profile"
         )
         
-    chinese_name = user_info.get("chinese-name")
-    english_name = user_info.get("english-name")
-    email = user_info.get("email")
-    student_id = user_info.get("student-id")
+    chinese_name = user_info.get("chineseName") or user_info.get("chinese-name")
+    english_name = user_info.get("englishName") or user_info.get("english-name")
+    email = None
+    student_id = user_info.get("studentId") or user_info.get("student-id")
     
-    # Extract department from academy-records
+    # Initialize NCU Portal Client for lookup resolution
+    portal_client = NCUPortalClient()
+    
+    # Determine role & extract fields using lookup tables
+    role = "student"
     department = None
-    academy_records = user_info.get("academy-records")
-    if academy_records and isinstance(academy_records, list) and len(academy_records) > 0:
-        department = academy_records[0].get("department-name")
+    study_system = None
+    student_status = None
+    employee_type = None
+    employee_status = None
+    title = None
+    
+    academy_records = user_info.get("academyRecords") or user_info.get("academy-records")
+    faculty_records = user_info.get("facultyRecords") or user_info.get("faculty-records")
+    
+    if academy_records:
+        role = "student"
+        record = academy_records[0] if isinstance(academy_records, list) and len(academy_records) > 0 else academy_records
+        if isinstance(record, dict):
+            resolved = await portal_client.resolve_student_info(record)
+            department = resolved.get("department")
+            study_system = resolved.get("study_system")
+            student_status = resolved.get("student_status")
+    elif faculty_records:
+        role = "faculty"
+        record = faculty_records[0] if isinstance(faculty_records, list) and len(faculty_records) > 0 else faculty_records
+        if isinstance(record, dict):
+            resolved = await portal_client.resolve_faculty_info(record)
+            department = resolved.get("department")
+            employee_type = resolved.get("employee_type")
+            employee_status = resolved.get("employee_status")
+            title = resolved.get("title")
+            
+    # Fallback for student student_id if not present in user_info but role is student
+    if role == "student" and not student_id:
+        student_id = identifier
         
     # 3. Create or update user in database
     user = db.query(User).filter(User.id == identifier).first()
@@ -120,7 +153,13 @@ async def callback(
     user.english_name = english_name
     user.email = email
     user.student_id = student_id
+    user.role = role
     user.department = department
+    user.study_system = study_system
+    user.student_status = student_status
+    user.employee_type = employee_type
+    user.employee_status = employee_status
+    user.title = title
     
     db.commit()
     db.refresh(user)
@@ -146,10 +185,14 @@ async def callback(
             "id": user.id,
             "chinese_name": user.chinese_name,
             "english_name": user.english_name,
-            "email": user.email,
             "student_id": user.student_id,
             "department": user.department,
-            "role": user.role
+            "role": user.role,
+            "study_system": user.study_system,
+            "student_status": user.student_status,
+            "employee_type": user.employee_type,
+            "employee_status": user.employee_status,
+            "title": user.title
         }
     }
 
@@ -162,10 +205,14 @@ def get_me(current_user: User = Depends(get_current_user)):
         "id": current_user.id,
         "chinese_name": current_user.chinese_name,
         "english_name": current_user.english_name,
-        "email": current_user.email,
         "student_id": current_user.student_id,
         "department": current_user.department,
         "role": current_user.role,
+        "study_system": current_user.study_system,
+        "student_status": current_user.student_status,
+        "employee_type": current_user.employee_type,
+        "employee_status": current_user.employee_status,
+        "title": current_user.title,
         "created_at": current_user.created_at,
         "updated_at": current_user.updated_at
     }
