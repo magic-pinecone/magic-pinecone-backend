@@ -288,7 +288,7 @@ async def sync_course_normalizations(db: Session, force_all: bool = False):
 
     semaphore = asyncio.Semaphore(5)
 
-    async with httpx.AsyncClient(verify=False, timeout=50.0) as client:
+    async with httpx.AsyncClient(timeout=50.0) as client:
         batch_size = 10
         for i in range(0, len(courses_to_process), batch_size):
             batch = courses_to_process[i : i + batch_size]
