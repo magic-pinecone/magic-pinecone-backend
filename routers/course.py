@@ -141,7 +141,7 @@ async def semantic_search_courses(
     from internal.rag_preprocessor import generate_embedding_api
 
     sem = asyncio.Semaphore(1)
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient() as client:
         query_vector = await generate_embedding_api(client, query, sem)
 
     if not query_vector:
