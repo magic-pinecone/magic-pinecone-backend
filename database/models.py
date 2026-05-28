@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, DateTime, Index
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, DateTime, Index, func
 from sqlalchemy.orm import relationship
 from database.db_connect import Base
 from pgvector.sqlalchemy import Vector
@@ -89,3 +89,17 @@ class Scholarship(Base):
     title = Column(String, nullable=False)
     content_summary = Column(Text, nullable=True)
     download_link = Column(String, nullable=True)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, index=True)  # NCU Portal unique `identifier`
+    chinese_name = Column(String, nullable=True)
+    english_name = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    role = Column(String, default="student")          # 'student', 'faculty', 'admin'
+    student_id = Column(String, unique=True, index=True, nullable=True)
+    department = Column(String, nullable=True)         # Extracted from academy-records
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

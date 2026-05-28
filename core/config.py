@@ -17,6 +17,16 @@ class Settings(BaseSettings):
     gemini_embedding_rpm_limit: int = 100
     gemini_max_embeddings_per_run: int = 900
 
+    # NCU Portal OAuth
+    ncu_oauth_client_id: str = ""
+    ncu_oauth_client_secret: str = ""
+    ncu_oauth_redirect_uri: str = "http://localhost:8000/auth/callback"
+
+    # JWT Security
+    jwt_secret_key: str = "temporary_secret_key_change_me_in_production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 1440
+
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 
 

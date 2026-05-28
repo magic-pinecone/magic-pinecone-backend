@@ -16,4 +16,5 @@ dependencies = [
     "sqlalchemy>=2.0.48",
     "uvicorn>=0.41.0",
     "pgvector>=0.3.6",
+    "pyjwt>=2.13.0",
 ]

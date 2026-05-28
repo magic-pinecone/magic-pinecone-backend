@@ -7,3 +7,14 @@ Accept: application/json
 GET http://127.0.0.1:8000/hello/User
 Accept: application/json
 ###
+
+### 1. NCU Portal OAuth Login (returns redirect)
+GET http://127.0.0.1:8000/auth/login
+###
+
+### 2. Retrieve Authenticated User Profile (Requires Bearer Token)
+GET http://127.0.0.1:8000/auth/me
+Authorization: Bearer YOUR_APP_JWT_TOKEN_HERE
+Accept: application/json
+###
+
