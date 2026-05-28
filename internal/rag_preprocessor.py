@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import List, Optional
 import httpx
 from sqlalchemy.orm import Session
@@ -37,6 +39,7 @@ embedding_rate_limiter = APIRateLimiter(rpm=settings.gemini_embedding_rpm_limit)
 # Constants for Gemini API
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 EMBEDDING_API_URL = "https://generativelanguage.googleapis.com/v1/models/{model}:embedContent?key={api_key}"
+EMBEDDING_RETRY_ATTEMPTS = 5
 
 
 SYSTEM_INSTRUCTION = """你是一個大學課程資訊重組專家。請將原始課程資料簡化為高密度的搜尋索引與核心摘要。
@@ -180,10 +183,8 @@ async def generate_embedding_api(
     }
 
 
-    max_attempts = 5
-
     async with semaphore:
-        for attempt in range(max_attempts):
+        for attempt in range(EMBEDDING_RETRY_ATTEMPTS):
             try:
                 await embedding_rate_limiter.wait_if_needed()
                 response = await client.post(url, json=body, timeout=25.0)
@@ -195,8 +196,8 @@ async def generate_embedding_api(
                     logger.warning(f"Unexpected response structure from Gemini Embedding: {data}")
                     return None
                 elif response.status_code in (429, 500, 502, 503, 504):
-                    if attempt >= max_attempts - 1:
-                        logger.error(f"Gemini Embedding API failed after {max_attempts} attempts: HTTP {response.status_code} - {response.text}")
+                    if attempt >= EMBEDDING_RETRY_ATTEMPTS - 1:
+                        logger.error(f"Gemini Embedding API failed after {EMBEDDING_RETRY_ATTEMPTS} attempts: HTTP {response.status_code} - {response.text}")
                         return None
 
                     retry_after = response.headers.get("Retry-After")
@@ -205,7 +206,15 @@ async def generate_embedding_api(
                         try:
                             wait_time = max(wait_time, float(retry_after))
                         except ValueError:
-                            pass
+                            try:
+                                retry_at = parsedate_to_datetime(retry_after)
+                                if retry_at is None:
+                                    raise ValueError
+                                if retry_at.tzinfo is None:
+                                    retry_at = retry_at.replace(tzinfo=timezone.utc)
+                                wait_time = max(wait_time, (retry_at - datetime.now(timezone.utc)).total_seconds())
+                            except ValueError:
+                                logger.debug(f"Invalid Retry-After header from Gemini Embedding API: {retry_after!r}")
 
                     logger.warning(f"Transient error ({response.status_code}) during embedding. Waiting {wait_time}s before retry...")
                     await asyncio.sleep(wait_time)
