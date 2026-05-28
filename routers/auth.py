@@ -5,6 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, R
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 import secrets
+import logging
+
+logger = logging.getLogger(__name__)
 
 from core.config import settings
 from core.security import create_access_token
@@ -147,7 +150,11 @@ async def callback(
             )
             
     user_info = info_response.json()
-    print(f"DEBUG: User Info from NCU Portal: {user_info}", flush=True)
+    logger.info(
+        f"Profile fetched successfully. Account Type: {user_info.get('accountType')}, "
+        f"Has Academy Records: {bool(user_info.get('academyRecords'))}, "
+        f"Has Faculty Records: {bool(user_info.get('facultyRecords'))}"
+    )
     identifier = user_info.get("identifier")
     if not identifier:
         raise HTTPException(
