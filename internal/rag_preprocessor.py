@@ -356,7 +356,7 @@ async def sync_course_embeddings(db: Session, force_all: bool = False):
 
     semaphore = asyncio.Semaphore(5)
 
-    async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         batch_size = 20  # Embeddings are fast, batch size can be slightly larger
         for i in range(0, len(embeddings_to_generate), batch_size):
             batch = embeddings_to_generate[i : i + batch_size]
