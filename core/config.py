@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 class Settings(BaseSettings):
     db_user: str
@@ -16,7 +17,6 @@ class Settings(BaseSettings):
     gemini_llm_rpm_limit: int = 5
     gemini_embedding_rpm_limit: int = 100
     gemini_max_embeddings_per_run: int = 900
-
     # NCU Portal OAuth
     ncu_oauth_client_id: str = ""
     ncu_oauth_client_secret: str = ""
@@ -24,9 +24,22 @@ class Settings(BaseSettings):
     allowed_redirect_origins: str = "http://localhost:5173,http://localhost:3000,http://localhost:18080"
 
     # JWT Security
-    jwt_secret_key: str = "temporary_secret_key_change_me_in_production"
+    jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def validate_jwt_secret_key(cls, v: str) -> str:
+        placeholders = {
+            "temporary_secret_key_change_me_in_production",
+            "generate_a_secure_random_string_here"
+        }
+        if not v or v.strip() == "" or v in placeholders:
+            raise ValueError(
+                "JWT_SECRET_KEY is required and cannot be empty or set to a placeholder/default value."
+            )
+        return v
 
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 
