@@ -2,7 +2,7 @@ from typing import Optional, List
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from database.db_connect import get_db
+from database.db_connect import get_db, db_session
 from database.models import Course, SystemStatus, CourseEmbedding
 from internal.course_fetcher import sync_courses_to_db
 from schemas.course_schema import CourseResult, SemanticSearchItem, CourseResponse
@@ -17,14 +17,12 @@ router = APIRouter(
 )
 
 async def run_sync_task():
-    db = next(get_db())
     try:
-        logger.info("Manual course sync started from endpoint.")
-        await sync_courses_to_db(db)
+        with db_session() as db:
+            logger.info("Manual course sync started from endpoint.")
+            await sync_courses_to_db(db)
     except Exception as e:
         logger.error(f"Error in manual sync task: {e}")
-    finally:
-        db.close()
 
 @router.post('/sync',
              summary="Trigger Course Synchronization",
@@ -101,16 +99,14 @@ async def query_courses(
     )
 
 async def run_embedding_sync_task(force_all: bool):
-    db = next(get_db())
     try:
-        logger.info("Manual course embedding RAG preprocessing started from endpoint.")
-        from internal.rag_preprocessor import sync_course_normalizations, sync_course_embeddings
-        await sync_course_normalizations(db, force_all=force_all)
-        await sync_course_embeddings(db, force_all=force_all)
+        with db_session() as db:
+            logger.info("Manual course embedding RAG preprocessing started from endpoint.")
+            from internal.rag_preprocessor import sync_course_normalizations, sync_course_embeddings
+            await sync_course_normalizations(db, force_all=force_all)
+            await sync_course_embeddings(db, force_all=force_all)
     except Exception as e:
         logger.error(f"Error in manual embedding sync task: {e}")
-    finally:
-        db.close()
 
 @router.post('/sync-embeddings',
              summary="Trigger RAG Embeddings Preprocessing",
