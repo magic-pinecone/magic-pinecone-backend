@@ -1,9 +1,10 @@
 import base64
 import httpx
 from urllib.parse import urlencode, urlparse
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
+import secrets
 
 from core.config import settings
 from core.security import create_access_token
@@ -12,28 +13,74 @@ from database.models import User
 from dependencies import get_current_user
 from internal.ncu_portal import NCUPortalClient
 
+def is_valid_redirect_uri(uri: str) -> bool:
+    if not uri:
+        return False
+    # Allow local relative paths starting with / but not // (which can trick parser to do absolute redirect)
+    if uri.startswith("/") and not uri.startswith("//"):
+        return True
+    
+    # Check absolute URLs against allowed origins
+    try:
+        parsed = urlparse(uri)
+        if parsed.scheme not in ("http", "https"):
+            return False
+            
+        allowed = [origin.strip().lower() for origin in settings.allowed_redirect_origins.split(",") if origin.strip()]
+        origin = f"{parsed.scheme}://{parsed.netloc}".lower()
+        if origin in allowed:
+            return True
+    except Exception:
+        pass
+        
+    return False
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.get("/login")
-def login(state: str | None = Query(None, description="Optional URL to redirect back to after authentication")):
+def login(
+    response: Response,
+    state: str | None = Query(None, description="Optional URL to redirect back to after authentication")
+):
     """
     Redirects the user to the NCU Portal OAuth 2.0 authorization page.
     """
+    # 1. Generate CSRF state
+    state_csrf = secrets.token_urlsafe(32)
+    
+    # 2. Validate redirect URI (passed as state parameter by client)
+    validated_redirect_uri = None
+    if state:
+        if is_valid_redirect_uri(state):
+            validated_redirect_uri = state
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid redirect URI. Target domain not in allowlist."
+            )
+            
     params = {
         "response_type": "code",
         "client_id": settings.ncu_oauth_client_id,
         "redirect_uri": settings.ncu_oauth_redirect_uri,
-        "scope": "identifier chinese-name english-name student-id academy-records faculty-records"
+        "scope": "identifier chinese-name english-name student-id academy-records faculty-records",
+        "state": state_csrf
     }
-    if state:
-        params["state"] = state
+    
     url = f"https://portal.ncu.edu.tw/oauth2/authorization?{urlencode(params)}"
-    return RedirectResponse(url)
+    res = RedirectResponse(url)
+    # Store CSRF state and redirection target in secure cookies
+    res.set_cookie("oauth_state", state_csrf, httponly=True, samesite="lax", secure=False)
+    if validated_redirect_uri:
+        res.set_cookie("oauth_redirect_uri", validated_redirect_uri, httponly=True, samesite="lax", secure=False)
+    return res
 
 @router.get("/callback")
 async def callback(
+    request: Request,
+    response: Response,
     code: str = Query(..., description="Authorization code from NCU Portal"),
-    state: str | None = Query(None, description="Redirect URL or state string passed during login"),
+    state: str | None = Query(None, description="CSRF state string from NCU Portal"),
     db: Session = Depends(get_db)
 ):
     """
@@ -41,6 +88,13 @@ async def callback(
     queries the user's profile from NCU Portal, upserts the user record,
     and issues an application-specific JWT access token.
     """
+    # CSRF Verification
+    cookie_state = request.cookies.get("oauth_state")
+    if not cookie_state or cookie_state != state:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CSRF state mismatch. Login flow has been manipulated."
+        )
     # 1. Exchange code for access token
     credentials = f"{settings.ncu_oauth_client_id}:{settings.ncu_oauth_client_secret}"
     encoded_credentials = base64.b64encode(credentials.encode()).decode()
@@ -169,15 +223,21 @@ async def callback(
     app_access_token = create_access_token(data=jwt_data)
     
     # 5. Handle response / redirection
-    if state:
-        # Check if state is a valid absolute/relative URL to redirect
-        parsed_state = urlparse(state)
-        if parsed_state.scheme in ("http", "https") or state.startswith("/"):
-            # Redirect to state URL with token
-            separator = "&" if "?" in state else "?"
-            redirect_url = f"{state}{separator}token={app_access_token}"
-            return RedirectResponse(redirect_url)
+    redirect_uri = request.cookies.get("oauth_redirect_uri")
+    if redirect_uri and is_valid_redirect_uri(redirect_uri):
+        # We append token as fragment (hash) to prevent URL leakage in Referer/headers
+        if "#" in redirect_uri:
+            redirect_url = f"{redirect_uri}&token={app_access_token}"
+        else:
+            redirect_url = f"{redirect_uri}#token={app_access_token}"
             
+        res = RedirectResponse(redirect_url)
+        res.delete_cookie("oauth_state")
+        res.delete_cookie("oauth_redirect_uri")
+        return res
+            
+    response.delete_cookie("oauth_state")
+    response.delete_cookie("oauth_redirect_uri")
     return {
         "access_token": app_access_token,
         "token_type": "bearer",

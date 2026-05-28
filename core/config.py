@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     ncu_oauth_client_id: str = ""
     ncu_oauth_client_secret: str = ""
     ncu_oauth_redirect_uri: str = "http://localhost:8000/auth/callback"
+    allowed_redirect_origins: str = "http://localhost:5173,http://localhost:3000,http://localhost:18080"
 
     # JWT Security
     jwt_secret_key: str = "temporary_secret_key_change_me_in_production"
