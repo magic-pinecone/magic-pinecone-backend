@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, DateTime, Index
 from sqlalchemy.orm import relationship
 from database.db_connect import Base
 from pgvector.sqlalchemy import Vector
@@ -63,6 +63,16 @@ class CourseEmbedding(Base):
     embedding = Column(Vector(768), nullable=True)
 
     course = relationship("Course", back_populates="embedding")
+
+    __table_args__ = (
+        Index(
+            "ix_course_embeddings_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+            postgresql_with={"m": 16, "ef_construction": 64},
+        ),
+    )
 
 
 
