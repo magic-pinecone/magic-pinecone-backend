@@ -41,7 +41,7 @@ class Course(Base):
     department = relationship("Department", back_populates="courses")
     college = relationship("College")
     detail = relationship("CourseDetail", back_populates="course", uselist=False, cascade="all, delete-orphan")
-    embedding = relationship("CourseEmbedding", back_populates="course", uselist=False, cascade="all, delete-orphan")
+    course_embedding = relationship("CourseEmbedding", back_populates="course", uselist=False, cascade="all, delete-orphan")
 
 class CourseDetail(Base):
     __tablename__ = "course_details"
@@ -62,7 +62,7 @@ class CourseEmbedding(Base):
     organized_description = Column(Text, nullable=False)
     embedding = Column(Vector(768), nullable=True)
 
-    course = relationship("Course", back_populates="embedding")
+    course = relationship("Course", back_populates="course_embedding")
 
     __table_args__ = (
         Index(
