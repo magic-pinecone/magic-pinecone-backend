@@ -153,6 +153,8 @@ async def semantic_search_courses(
         (1.0 - CourseEmbedding.embedding.cosine_distance(query_vector)).label("similarity")
     ).join(
         CourseEmbedding, Course.serial_no == CourseEmbedding.serial_no
+    ).filter(
+        CourseEmbedding.embedding.is_not(None)
     ).order_by(
         CourseEmbedding.embedding.cosine_distance(query_vector)
     ).limit(limit).all()
