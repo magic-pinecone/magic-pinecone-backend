@@ -180,8 +180,10 @@ async def generate_embedding_api(
     }
 
 
+    max_attempts = 5
+
     async with semaphore:
-        for attempt in range(3):
+        for attempt in range(max_attempts):
             try:
                 await embedding_rate_limiter.wait_if_needed()
                 response = await client.post(url, json=body, timeout=25.0)
@@ -193,7 +195,18 @@ async def generate_embedding_api(
                     logger.warning(f"Unexpected response structure from Gemini Embedding: {data}")
                     return None
                 elif response.status_code in (429, 500, 502, 503, 504):
+                    if attempt >= max_attempts - 1:
+                        logger.error(f"Gemini Embedding API failed after {max_attempts} attempts: HTTP {response.status_code} - {response.text}")
+                        return None
+
+                    retry_after = response.headers.get("Retry-After")
                     wait_time = 2.0 ** attempt
+                    if retry_after:
+                        try:
+                            wait_time = max(wait_time, float(retry_after))
+                        except ValueError:
+                            pass
+
                     logger.warning(f"Transient error ({response.status_code}) during embedding. Waiting {wait_time}s before retry...")
                     await asyncio.sleep(wait_time)
                 else:
@@ -385,4 +398,3 @@ async def sync_course_embeddings(db: Session, force_all: bool = False):
             await asyncio.sleep(0.5)
 
     logger.info("Course RAG embedding generation complete.")
-
